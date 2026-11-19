@@ -2,7 +2,7 @@
 
 A [Horizon](https://playhorizon.dev) port of three decorative block mods in one, and a trash can:
 
-- **Chipped** (by Terrarium): its 2,258 block variants, every block but its workbenches.
+- **Chipped** (by Terrarium), from its 1.18.1 jar: its 2,487 block variants, every block but its workbenches.
 - **Chisel** (by the Chisel team): 2,371 of its variants, each a block of its own.
 - **Block Carpentry** (by PianoManu): 37 frames that take on the look of any block put in them.
 - **Trash Cans** (by SuperMartijn642): its Item Trash Can.
@@ -67,7 +67,7 @@ Install both:
 `gen.py` writes the content mod from the unpacked original jars and vanilla 26.3's data:
 
 ```
-python3 -I gen.py <chipped jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar> <Trash Cans jar>
+python3 -I gen.py <Chipped 1.18.1 jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar> <Trash Cans jar>
 cd content && cargo horizon-mod build
 python3 -I tools/packnative.py native block_variety_native.hnmod
 ```

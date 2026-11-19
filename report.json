@@ -1,10 +1,10 @@
 {
- "blocks": 4643,
- "chipped": 2258,
+ "blocks": 4872,
+ "chipped": 2487,
  "chisel": 2371,
  "frames": 37,
  "itemless": 14,
- "groups": 229,
+ "groups": 244,
  "biggest_group": 70,
  "left_out": {
   "chisel: model not a plain cube, or a vanilla texture under an overlay": 403

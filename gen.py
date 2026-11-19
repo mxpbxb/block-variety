@@ -28,7 +28,7 @@ BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
 BASALT = re.compile(r'basalt_\d+$')
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
