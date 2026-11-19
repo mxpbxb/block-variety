@@ -20,6 +20,10 @@ There are no Chipped workbenches. The chisel does all of it:
 A group is a vanilla block's family, the vanilla block first (stone, obsidian, the planks, glass,
 torches, lanterns and the rest), or a Chisel block of its own.
 
+Chipped's blackstone and gilded blackstone are darkened into Programmer Art Continuation's
+blackstone (`tools/blackstone.py`): each pixel's lightness mapped onto the pack's, in its neutral
+grey, the gold left as it is.
+
 Each block behaves as its vanilla template does: it drops itself where that drops itself, and takes
 the same mining tool and tool level.
 

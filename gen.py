@@ -21,9 +21,12 @@ import hashlib, json, os, re, shutil, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 import png  # noqa: E402
+import blackstone  # noqa: E402
+# Chipped's blackstone (and gilded blackstone), darkened into Programmer Art Continuation's.
+BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -152,6 +155,9 @@ def copy_chipped_model(ref):
                 s = os.path.join(CA, 'textures', tp + ext)
                 if os.path.exists(s):
                     copy(s, 'assets/chipped/textures/%s%s' % (tp, ext))
+                    if ext == '.png' and BLACKSTONE.match(tp.split('/')[-1]):
+                        out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
+                        png.write(out, blackstone.darken(png.read(out)))
 
 def models_in(state):
     found = []
