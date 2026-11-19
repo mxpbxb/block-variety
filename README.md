@@ -13,8 +13,10 @@ Ported with the original creators' permission. Their art and designs are theirs.
 
 There are no Chipped workbenches. The chisel does all of it:
 
-- **Right-click with the chisel**, holding blocks in your other hand: a menu of every block of their
-  group (pages of 45, with arrows, for a big group). Click one, and the whole stack becomes it.
+- **Right-click with the chisel**, holding blocks in your other hand: the chisel's screen, every
+  block of their group as icons in a grid that scrolls, with a search (type part of a name). Click
+  one and the whole stack becomes it; right-click and one block does. It stays open, so you can go
+  on, and Enter takes the first block the search shows.
 - **Right-click a placed block** with the chisel: it becomes the next block of its group (sneaking,
   the one before), keeping its facing, connections and the rest of its state.
 

@@ -1,23 +1,26 @@
 //! Block Variety's native part: the chisel, the one way between a group's blocks of Chipped and
 //! Chisel (there are no Chipped workbenches), and Block Carpentry's frames (`frames`).
 //!
-//! - Right-click with the chisel: a menu of every block of the group of what is in your other hand
-//!   (pages of 45, with arrows, for a group bigger than a chest). Click one, and that whole stack
-//!   becomes it.
+//! - Right-click with the chisel: the chisel's screen (`chisel_ui`), every block of the group of
+//!   what is in your other hand as icons, with a search. Click one, and that whole stack becomes
+//!   it; right-click, and one block does.
 //! - Right-click a placed block of a group with the chisel: it becomes the group's next block
 //!   (sneaking, the one before), keeping its facing, connections and the rest of its state.
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-
 use horizon_client::mod_api::{
     BlockEntityContainerEvent, BlockEntityEvent, BlockEntitySubmitEvent, BlockEntityTickEvent, BlockEntityTicksEvent,
-    BlockEntityUpdateTagEvent, Compound, ModContainer, DestroyBlockEvent, EquipmentSlot, Flow, Hooks, Host, ItemStack, MenuClickedEvent, MenuClosedEvent, NativeServerPlayer, Text, UseItemEvent,
-    UseItemOnEvent,
+    BlockEntityUpdateTagEvent, ClientTickPostEvent, Compound, DestroyBlockEvent, EquipmentSlot, Flow, Hooks, Host,
+    ItemStack, ModContainer, NativeServerPlayer, NetFromClientEvent, NetFromServerEvent, ScreenCharTypedPreEvent,
+    ScreenKeyPressedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenMouseButtonReleasedPreEvent,
+    ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, Text, UseItemEvent, UseItemOnEvent,
 };
 
+mod chisel_ui;
 mod frames;
 mod groups;
+mod names;
 mod trash;
+
+use chisel_ui::{MOD_ID, UI, Ui};
 
 pub fn hooks() -> Box<dyn Hooks> {
     Box::new(Mod)
@@ -26,16 +29,10 @@ pub fn hooks() -> Box<dyn Hooks> {
 struct Mod;
 
 const CHISEL: &str = "block_variety:chisel";
-/// The menu's sound and the chisel's, on a block.
+/// The screen's sound and the chisel's, on a block.
 const CLICK: &str = "minecraft:ui.button.click";
 const CHIP: &str = "minecraft:block.stone.hit";
 const SOUND_BLOCKS: usize = 4;
-/// A page of a big group: five rows of blocks, then a row with the arrows.
-const PAGE: usize = 45;
-const PREV: usize = 45;
-const NEXT: usize = 53;
-const ARROW: &str = "minecraft:arrow";
-
 /// The group `block` is in, if any.
 fn group_of(block: &str) -> Option<&'static [&'static str]> {
     groups::GROUPS.iter().copied().find(|g| g.contains(&block))
@@ -54,58 +51,9 @@ fn entries(group: &'static [&'static str]) -> Vec<&'static str> {
     group.iter().copied().filter(|b| !groups::ITEMLESS.contains(b)).collect()
 }
 
-fn pages(entries: &[&str]) -> usize {
-    if entries.len() <= 54 { 1 } else { entries.len().div_ceil(PAGE) }
-}
-
-fn rows(entries: &[&str]) -> u8 {
-    if pages(entries) > 1 { 6 } else { entries.len().div_ceil(9).clamp(1, 6) as u8 }
-}
-
-/// The block a slot of a page holds, if any.
-fn at(entries: &[&'static str], page: usize, slot: usize) -> Option<&'static str> {
-    if pages(entries) == 1 {
-        return entries.get(slot).copied();
-    }
-    if slot >= PAGE {
-        return None;
-    }
-    entries.get(page * PAGE + slot).copied()
-}
-
-fn menu_items(entries: &[&'static str], page: usize) -> Vec<Option<ItemStack>> {
-    let size = rows(entries) as usize * 9;
-    let mut items: Vec<Option<ItemStack>> = (0..size).map(|s| at(entries, page, s).map(|b| ItemStack::new(b, 1))).collect();
-    if pages(entries) > 1 {
-        if page > 0 {
-            items[PREV] = Some(ItemStack::new(ARROW, 1));
-        }
-        if page + 1 < pages(entries) {
-            items[NEXT] = Some(ItemStack::new(ARROW, 1));
-        }
-    }
-    items
-}
-
-/// Each player's open chisel menu: its window, what it offers, and the page shown.
-struct Open {
-    window: i32,
-    entries: Vec<&'static str>,
-    page: usize,
-}
-static OPEN: LazyLock<Mutex<HashMap<u128, Open>>> = LazyLock::new(Default::default);
-
 fn sound(host: &mut dyn Host, player: &NativeServerPlayer, sound: &str, at: [f64; 3]) {
     if let Some(level) = host.level(&player.dimension) {
         host.level_play_sound(level, sound, at, SOUND_BLOCKS, 0.6, 1.0);
-    }
-}
-
-fn title(entries: &[&str], page: usize) -> Text {
-    if pages(entries) > 1 {
-        Text::literal(format!("Chisel ({}/{})", page + 1, pages(entries)))
-    } else {
-        Text::literal("Chisel")
     }
 }
 
@@ -123,6 +71,65 @@ impl Mod {
             host.summon(&player.dimension, "minecraft:item", player.position, nbt);
         }
     }
+
+    /// Tells the player's client what is in their other hand, for the chisel's screen (nothing
+    /// to chisel closes it).
+    fn show(&self, host: &mut dyn Host, player: u128) {
+        let held = host.player_equipment(player, EquipmentSlot::OffHand);
+        let (id, count) = match held.as_ref().filter(|s| group_of(&s.item).is_some()) {
+            Some(s) => (s.item.to_string(), s.count),
+            None => (String::new(), 0),
+        };
+        let _ = host.net_send_to_player(player, chisel_ui::OPEN, &chisel_ui::encode_open(&id, count));
+    }
+
+    /// What the screen chose: the stack in the other hand (or one of it) becomes `target`, a block
+    /// of the same group.
+    fn chisel(&self, host: &mut dyn Host, player: &NativeServerPlayer, target: &str, whole: bool) {
+        let Some(held) = host.player_equipment(player.uuid, EquipmentSlot::OffHand) else { return };
+        let Some(target) = group_of(&held.item).and_then(|g| g.iter().copied().find(|b| *b == target)) else { return };
+        if groups::ITEMLESS.contains(&target) || &*held.item == target {
+            return;
+        }
+        let one = !whole && held.count > 1;
+        let into = if one {
+            let mut rest = held.clone();
+            rest.count -= 1;
+            rest
+        } else {
+            ItemStack::new(target, held.count)
+        };
+        let set = host
+            .entity(player.entity_id as u32)
+            .and_then(|e| host.living(e))
+            .is_some_and(|l| l.set_equipment(host, EquipmentSlot::OffHand, Some(into.clone())))
+            && host.player_equipment(player.uuid, EquipmentSlot::OffHand) == Some(into);
+        if set {
+            if one {
+                self.hand_over(host, player, ItemStack::new(target, 1));
+            }
+        } else {
+            // The hand couldn't be set: take the blocks from the inventory and give the new ones.
+            let taken = host.take_items(&held.item, if one { 1 } else { held.count });
+            if taken == 0 {
+                return;
+            }
+            self.hand_over(host, player, ItemStack::new(target, taken));
+        }
+        sound(host, player, CHIP, player.position);
+    }
+}
+
+// ---- The client's side ----
+
+/// Whether the screen open is the chisel's.
+fn ours(host: &dyn Host, id: &str) -> bool {
+    id == "mod" && host.mod_screen() == Some(MOD_ID)
+}
+
+fn blink() -> bool {
+    let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+    ms / 500 % 2 == 0
 }
 
 impl Hooks for Mod {
@@ -183,76 +190,118 @@ impl Hooks for Mod {
         Flow::Cancel
     }
 
-    /// The chisel, used: the menu of the group of what is in the other hand.
+    /// The chisel, used: its screen, for the group of what is in the other hand.
     fn use_item(&self, host: &mut dyn Host, event: &mut UseItemEvent<'_>) -> Flow {
         if &*event.stack.item != CHISEL {
             return Flow::Continue;
         }
         let Some(player) = host.acting_player() else { return Flow::Continue };
         let held = host.player_equipment(player.uuid, EquipmentSlot::OffHand);
-        let Some(group) = held.as_ref().and_then(|s| group_of(&s.item)) else {
+        if held.as_ref().and_then(|s| group_of(&s.item)).is_none_or(|g| entries(g).len() < 2) {
             host.action_bar(player.uuid, Text::literal("Chisel: hold the blocks to chisel in your other hand"));
             return Flow::Cancel;
-        };
-        let entries = entries(group);
-        if let Some(window) = host.open_menu(player.uuid, rows(&entries), title(&entries, 0), menu_items(&entries, 0)) {
-            if let Ok(mut o) = OPEN.lock() {
-                o.insert(player.uuid, Open { window, entries, page: 0 });
-            }
         }
+        self.show(host, player.uuid);
+        sound(host, &player, CLICK, player.position);
         Flow::Cancel
     }
 
-    /// A block clicked in the chisel menu: the stack in the other hand becomes it. An arrow: the
-    /// page before or after.
-    fn menu_clicked(&self, host: &mut dyn Host, event: &mut MenuClickedEvent) {
-        let Ok(slot) = usize::try_from(event.slot) else { return };
-        let (target, turn) = {
-            let Ok(mut o) = OPEN.lock() else { return };
-            let Some(open) = o.get_mut(&event.uuid) else { return };
-            if open.window != event.window {
-                return;
-            }
-            let n = pages(&open.entries);
-            if n > 1 && slot == PREV && open.page > 0 {
-                open.page -= 1;
-                (None, Some((menu_items(&open.entries, open.page), open.page, n)))
-            } else if n > 1 && slot == NEXT && open.page + 1 < n {
-                open.page += 1;
-                (None, Some((menu_items(&open.entries, open.page), open.page, n)))
-            } else {
-                (at(&open.entries, open.page, slot), None)
-            }
-        };
-        let Some(player) = host.server_players().into_iter().find(|p| p.uuid == event.uuid) else { return };
-        if let Some((items, _, _)) = turn {
-            host.set_menu_items(player.uuid, items);
-            sound(host, &player, CLICK, player.position);
+    /// A block chosen on the chisel's screen; then the screen is told what is held now.
+    fn net_from_client(&self, host: &mut dyn Host, event: &mut NetFromClientEvent<'_>) {
+        if event.channel != chisel_ui::CHOOSE {
             return;
         }
-        let Some(target) = target else { return };
-        let Some(held) = host.player_equipment(player.uuid, EquipmentSlot::OffHand) else {
-            host.action_bar(player.uuid, Text::literal("Chisel: your other hand is empty"));
-            return;
-        };
-        let same_group = group_of(&held.item).is_some_and(|g| g.contains(&target));
-        if !same_group || &*held.item == target {
-            return;
-        }
-        let taken = host.take_items(&held.item, held.count);
-        if taken > 0 {
-            self.hand_over(host, &player, ItemStack::new(target, taken));
-            sound(host, &player, CHIP, player.position);
-        }
-        sound(host, &player, CLICK, player.position);
+        let Some((target, whole)) = chisel_ui::decode_choose(event.data) else { return };
+        let Some(player) = host.server_players().into_iter().find(|p| p.uuid == event.player) else { return };
+        self.chisel(host, &player, &target, whole);
+        self.show(host, player.uuid);
     }
 
-    fn menu_closed(&self, _: &mut dyn Host, event: &mut MenuClosedEvent) {
-        if let Ok(mut o) = OPEN.lock()
-            && o.get(&event.uuid).is_some_and(|open| open.window == event.window)
-        {
-            o.remove(&event.uuid);
+    /// The server says what is held: the chisel's screen opens on it, or shows it now.
+    fn net_from_server(&self, host: &mut dyn Host, event: &mut NetFromServerEvent<'_>) {
+        if event.channel != chisel_ui::OPEN {
+            return;
         }
+        let Some((held, count)) = chisel_ui::decode_open(event.data) else { return };
+        if !chisel_ui::set_held(held, count) {
+            if host.mod_screen() == Some(MOD_ID) {
+                host.mod_screen_close(MOD_ID);
+            }
+            return;
+        }
+        if host.mod_screen() != Some(MOD_ID)
+            && !host.mod_screen_open(MOD_ID)
+            && let Ok(mut ui) = UI.lock()
+        {
+            *ui = Ui::Closed;
+        }
+    }
+
+    /// Sends what the screen chose, and forgets a screen Escape closed.
+    fn client_tick_post(&self, host: &mut dyn Host, _: &mut ClientTickPostEvent) {
+        let out = chisel_ui::OUTBOX.lock().map(|mut o| std::mem::take(&mut *o)).unwrap_or_default();
+        for (channel, data) in out {
+            let _ = host.net_send_to_server(channel, &data);
+        }
+        if host.mod_screen() != Some(MOD_ID)
+            && let Ok(mut ui) = UI.lock()
+        {
+            *ui = Ui::Closed;
+        }
+    }
+
+    fn screen_render_post(&self, host: &dyn Host, event: &mut ScreenRenderPostEvent<'_>) {
+        if ours(host, event.screen.id) {
+            chisel_ui::draw(host, event.batch, event.screen.rect, event.screen.mouse, blink());
+        }
+    }
+
+    fn screen_char_typed_pre(&self, host: &dyn Host, event: &mut ScreenCharTypedPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) {
+            return Flow::Continue;
+        }
+        chisel_ui::typed(event.c);
+        Flow::Cancel
+    }
+
+    fn screen_key_pressed_pre(&self, host: &dyn Host, event: &mut ScreenKeyPressedPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) || event.key == "key.keyboard.escape" {
+            return Flow::Continue;
+        }
+        chisel_ui::key(event.key);
+        Flow::Cancel
+    }
+
+    fn screen_mouse_button_pressed_pre(&self, host: &dyn Host, event: &mut ScreenMouseButtonPressedPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) {
+            return Flow::Continue;
+        }
+        chisel_ui::pressed(event.screen.rect, event.screen.mouse, event.button);
+        Flow::Cancel
+    }
+
+    fn screen_mouse_button_released_pre(&self, host: &dyn Host, event: &mut ScreenMouseButtonReleasedPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) {
+            return Flow::Continue;
+        }
+        chisel_ui::released();
+        Flow::Cancel
+    }
+
+    fn screen_mouse_dragged_pre(&self, host: &dyn Host, event: &mut ScreenMouseDraggedPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) {
+            return Flow::Continue;
+        }
+        chisel_ui::dragged(event.screen.rect, event.screen.mouse);
+        Flow::Cancel
+    }
+
+    fn screen_mouse_scrolled_pre(&self, host: &dyn Host, event: &mut ScreenMouseScrolledPreEvent<'_>) -> Flow {
+        if !ours(host, event.screen.id) {
+            return Flow::Continue;
+        }
+        chisel_ui::scrolled(event.screen.rect, event.scroll[1]);
+        Flow::Cancel
     }
 }
 
@@ -281,24 +330,6 @@ mod tests {
             }
         }
         assert!(group_of("minecraft:crying_obsidian").unwrap().iter().all(|b| b.contains("crying_obsidian")));
-    }
-
-    #[test]
-    fn big_groups_page_and_every_entry_has_a_slot() {
-        for g in groups::GROUPS {
-            let e = entries(g);
-            let items = menu_items(&e, 0);
-            assert!(items.len() <= 54 && items.len() == rows(&e) as usize * 9);
-            let mut found = 0;
-            for page in 0..pages(&e) {
-                found += (0..54).filter(|&s| at(&e, page, s).is_some()).count();
-            }
-            assert_eq!(found, e.len());
-        }
-        let stone = entries(group_of("minecraft:stone").unwrap());
-        assert!(pages(&stone) > 1, "{}", stone.len());
-        assert_eq!(menu_items(&stone, 0)[NEXT].as_ref().map(|s| s.item.to_string()), Some(ARROW.to_owned()));
-        assert!(menu_items(&stone, 0)[PREV].is_none());
     }
 
     #[test]

@@ -806,6 +806,10 @@ for r, _, fs in os.walk(OUT):
                 open(path, 'w', encoding='utf-8', newline='\n').write(n)
 s = open(NATIVE).read().replace('"chipped:', '"%s:' % NS)
 open(NATIVE, 'w', newline='\n').write(s)
+# The chisel screen's names of them.
+import subprocess
+subprocess.run([sys.executable, '-I', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools', 'names.py'),
+                OUT, NATIVE, os.path.join(os.path.dirname(NATIVE), 'names.rs')], check=True)
 summary = {'blocks': report['blocks'], 'chipped': len(tabs['chipped']), 'chisel': len(tabs['chisel']), 'frames': len(frames),
            'itemless': len(itemless), 'groups': len(group_order), 'biggest_group': max(len(g) for g in groups.values()),
            'left_out': {k: len(v) for k, v in report['left_out'].items()}}
