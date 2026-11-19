@@ -1,0 +1,8 @@
+jars/
+content/
+release/
+target/
+__pycache__/
+*.hmod
+*.hnmod
+Cargo.lock
