@@ -28,7 +28,7 @@ BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
 BASALT = re.compile(r'basalt_\d+$')
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -720,6 +720,35 @@ if BC:
               'result': {'id': 'chipped:' + out_id, 'count': r['result'].get('count', 1)}})
     tabs['frames'] = frames + ['chipped:hammer']
 
+# ---- Trash Cans' Item Trash Can (by SuperMartijn642): what goes in is gone ------------------------
+TC = sys.argv[6] if len(sys.argv) > 6 else None
+trash = []
+if TC:
+    TA = os.path.join(TC, 'assets/trashcans')
+    copy(os.path.join(TA, 'textures/trash_can_items.png'), 'assets/chipped/textures/block/trash_can_items.png')
+    shape = load(os.path.join(TA, 'models/trash_can.json'))
+    wjson('assets/chipped/models/block/trash_can.json', shape)
+    wjson('assets/chipped/models/block/item_trash_can.json',
+          {'parent': 'chipped:block/trash_can', 'textures': {'all': 'chipped:block/trash_can_items'}})
+    wjson('assets/chipped/blockstates/item_trash_can.json', {'variants': {'': {'model': 'chipped:block/item_trash_can'}}})
+    wjson('assets/chipped/models/item/item_trash_can.json', {'parent': 'chipped:block/item_trash_can'})
+    item_model('item_trash_can', 'chipped:item/item_trash_can')
+    # A chest's shape and its way of holding a mod container; drawn as its own model.
+    wjson('data/chipped/horizon/block/item_trash_can.json', {'template': 'minecraft:chest', 'item': True,
+          'properties': {'occludes': False, 'render_shape': 'MODEL', 'sounds': 'minecraft:stone', 'requires_tool': True}})
+    wjson('data/chipped/loot_table/blocks/item_trash_can.json', {'type': 'minecraft:block',
+          'random_sequence': 'chipped:blocks/item_trash_can',
+          'pools': [{'rolls': 1, 'entries': [{'type': 'minecraft:item', 'name': 'chipped:item_trash_can'}],
+                     'conditions': [{'condition': 'minecraft:survives_explosion'}]}]})
+    out_tags['block'].setdefault('mineable/pickaxe', []).append('chipped:item_trash_can')
+    # Its recipe, with vanilla's stone, cobblestone and chest for the `c:` tags.
+    wjson('data/chipped/recipe/item_trash_can.json', {'type': 'minecraft:crafting_shaped', 'category': 'misc',
+          'pattern': ['AAA', 'BCB', 'BBB'],
+          'key': {'A': 'minecraft:stone', 'B': '#minecraft:stone_crafting_materials', 'C': 'minecraft:chest'},
+          'result': {'id': 'chipped:item_trash_can', 'count': 1}})
+    lang['block.chipped.item_trash_can'] = 'Item Trash Can'
+    trash.append('chipped:item_trash_can')
+
 # ---- The groups, for the native part ------------------------------------------------------------
 NATIVE = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'native/api/src/groups.rs')
 with open(NATIVE, 'w', newline='\n') as f:
@@ -734,7 +763,7 @@ with open(NATIVE, 'w', newline='\n') as f:
 
 # ---- The mod's own files ---------------------------------------------------------------------
 wjson('data/chipped/horizon/creative_tab/chipped.json', {'title': 'itemGroup.chipped.chipped', 'icon': 'chipped:chisel',
-      'items': ['chipped:chisel'] + tabs['chipped']})
+      'items': ['chipped:chisel'] + trash + tabs['chipped']})
 wjson('data/chipped/horizon/creative_tab/chisel.json', {'title': 'itemGroup.chipped.chisel', 'icon': tabs['chisel'][0],
       'items': tabs['chisel']})
 if frames:
@@ -751,8 +780,8 @@ with open(os.path.join(OUT, 'horizon-mod.toml'), 'w', newline='\n') as f:
     f.write('''id = "block_variety"
 name = "Block Variety"
 version = "%s"
-description = "Every block of Chipped (by Terrarium) and Chisel (by the Chisel team), turned into one another with the chisel, and the frames of Block Carpentry (by PianoManu), which take on the look of any block put in them (needs block_variety_native). No crafting stations: hold blocks in your offhand and use the chisel, or use it on a placed block."
-authors = ["Terrarium (Chipped)", "Chisel team (Chisel)", "PianoManu (Block Carpentry)", "mxpbxb (Horizon port)"]
+description = "Every block of Chipped (by Terrarium) and Chisel (by the Chisel team), turned into one another with the chisel, and the frames of Block Carpentry (by PianoManu), which take on the look of any block put in them, and the Item Trash Can of Trash Cans (by SuperMartijn642) (needs block_variety_native). No crafting stations: hold blocks in your offhand and use the chisel, or use it on a placed block."
+authors = ["Terrarium (Chipped)", "Chisel team (Chisel)", "PianoManu (Block Carpentry)", "SuperMartijn642 (Trash Cans)", "mxpbxb (Horizon port)"]
 api = "0.2"
 side = "both"
 capabilities = ["registries"]

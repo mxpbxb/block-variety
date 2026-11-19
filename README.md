@@ -1,10 +1,11 @@
 # Block Variety
 
-A [Horizon](https://playhorizon.dev) port of three decorative block mods in one:
+A [Horizon](https://playhorizon.dev) port of three decorative block mods in one, and a trash can:
 
 - **Chipped** (by Terrarium): its 2,258 block variants, every block but its workbenches.
 - **Chisel** (by the Chisel team): 2,371 of its variants, each a block of its own.
 - **Block Carpentry** (by PianoManu): 37 frames that take on the look of any block put in them.
+- **Trash Cans** (by SuperMartijn642): its Item Trash Can.
 
 Ported with the original creators' permission. Their art and designs are theirs.
 
@@ -39,6 +40,12 @@ to fill it with that block's look (a door or a bed takes it on both halves); rig
 to take the block back out. A broken frame drops the block put in it. The frames keep their
 template's shape and behaviour: a door opens, a fence joins. The recipes are Block Carpentry's.
 
+## Item Trash Can
+
+A row of nine slots: whatever goes in, from your hand or a hopper, is gone the next tick. It takes
+nothing out. Trash Cans' recipe, with stone, cobblestone (or blackstone or cobbled deepslate) and a
+chest. Its filter, its list of deleted items and the other cans are left out.
+
 ## Left out
 
 403 of Chisel's variants: 274 whose textures are not in its jar (Emboss, Indent, Large Ornate and
@@ -53,14 +60,14 @@ Install both:
 | Part | Id | What |
 |---|---|---|
 | Assets (`.hmod`) | `block_variety` | The blocks, items, models, textures, loot, tags and recipes |
-| Native (`.hnmod`) | `block_variety_native` | The chisel and the frames |
+| Native (`.hnmod`) | `block_variety_native` | The chisel, the frames and the trash can |
 
 ## Building
 
 `gen.py` writes the content mod from the unpacked original jars and vanilla 26.3's data:
 
 ```
-python3 -I gen.py <chipped jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar>
+python3 -I gen.py <chipped jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar> <Trash Cans jar>
 cd content && cargo horizon-mod build
 python3 -I tools/packnative.py native block_variety_native.hnmod
 ```
@@ -73,4 +80,5 @@ reads and writes the PNGs it flattens Chisel's layered textures with.
 - Chipped: Terrarium
 - Chisel: the Chisel team
 - Block Carpentry: PianoManu
+- Trash Cans: SuperMartijn642
 - Horizon port: mxpbxb

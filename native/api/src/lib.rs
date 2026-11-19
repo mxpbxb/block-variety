@@ -17,6 +17,7 @@ use horizon_client::mod_api::{
 
 mod frames;
 mod groups;
+mod trash;
 
 pub fn hooks() -> Box<dyn Hooks> {
     Box::new(Mod)
@@ -126,21 +127,22 @@ impl Mod {
 
 impl Hooks for Mod {
     fn block_entity(&self, _: &mut dyn Host, event: &mut BlockEntityEvent<'_>) -> Option<(String, Compound)> {
-        frames::block_entity(event)
+        frames::block_entity(event).or_else(|| trash::block_entity(event))
     }
 
     fn block_entity_container(&self, _: &dyn Host, event: &mut BlockEntityContainerEvent<'_>) -> Option<ModContainer> {
-        frames::container(event.block)
+        frames::container(event.block).or_else(|| trash::container(event.block))
     }
 
     fn block_entity_ticks(&self, _: &dyn Host, event: &mut BlockEntityTicksEvent<'_>) {
-        if frames::ticks(event.block) {
+        if frames::ticks(event.block) || trash::ticks(event.block) {
             event.ticks = true;
         }
     }
 
     fn block_entity_tick(&self, host: &mut dyn Host, event: &mut BlockEntityTickEvent<'_>) {
         frames::tick(host, event);
+        trash::tick(event);
     }
 
     fn block_entity_update_tag(&self, event: &mut BlockEntityUpdateTagEvent<'_>) -> Option<Compound> {
