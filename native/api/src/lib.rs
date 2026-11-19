@@ -10,7 +10,8 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 use horizon_client::mod_api::{
-    BlockEntityEvent, BlockEntitySubmitEvent, BlockEntityUpdateTagEvent, Compound, DestroyBlockEvent, EquipmentSlot, Flow, Hooks, Host, ItemStack, MenuClickedEvent, MenuClosedEvent, NativeServerPlayer, Text, UseItemEvent,
+    BlockEntityContainerEvent, BlockEntityEvent, BlockEntitySubmitEvent, BlockEntityTickEvent, BlockEntityTicksEvent,
+    BlockEntityUpdateTagEvent, Compound, ModContainer, DestroyBlockEvent, EquipmentSlot, Flow, Hooks, Host, ItemStack, MenuClickedEvent, MenuClosedEvent, NativeServerPlayer, Text, UseItemEvent,
     UseItemOnEvent,
 };
 
@@ -126,6 +127,20 @@ impl Mod {
 impl Hooks for Mod {
     fn block_entity(&self, _: &mut dyn Host, event: &mut BlockEntityEvent<'_>) -> Option<(String, Compound)> {
         frames::block_entity(event)
+    }
+
+    fn block_entity_container(&self, _: &dyn Host, event: &mut BlockEntityContainerEvent<'_>) -> Option<ModContainer> {
+        frames::container(event.block)
+    }
+
+    fn block_entity_ticks(&self, _: &dyn Host, event: &mut BlockEntityTicksEvent<'_>) {
+        if frames::ticks(event.block) {
+            event.ticks = true;
+        }
+    }
+
+    fn block_entity_tick(&self, host: &mut dyn Host, event: &mut BlockEntityTickEvent<'_>) {
+        frames::tick(host, event);
     }
 
     fn block_entity_update_tag(&self, event: &mut BlockEntityUpdateTagEvent<'_>) -> Option<Compound> {

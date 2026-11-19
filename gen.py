@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'too
 import png  # noqa: E402
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -601,7 +601,22 @@ FRAMES = [  # id, name, template, item model (parent, texture keys) or a flat it
     ('frame_pressure_plate', 'Frame Pressure Plate', 'minecraft:oak_pressure_plate', ('minecraft:block/pressure_plate_up', ['texture'])),
     ('frame_layered_block', 'Frame Layered Block', 'minecraft:snow', ('minecraft:block/snow_height2', ['texture', 'particle'])),
     ('illusion_block', 'Illusion Block', 'minecraft:oak_planks', ('minecraft:block/cube_all', ['all'])),
+    ('frame_edged_slope', 'Frame Edged Slope', 'minecraft:oak_stairs', ('minecraft:block/stairs', ['bottom', 'top', 'side'])),
+    ('falling_frameblock', 'Falling Frame Block', 'minecraft:sand', ('minecraft:block/cube_all', ['all'])),
+    ('frame_bed', 'Frame Bed', 'minecraft:white_bed', ('minecraft:block/slab', ['bottom', 'top', 'side'])),
+    ('frame_chest', 'Frame Chest', 'minecraft:chest', ('minecraft:block/cube_all', ['all'])),
+    ('frame_daylight_detector', 'Frame Daylight Detector', 'minecraft:daylight_detector',
+     ('minecraft:block/slab', ['bottom', 'top', 'side'])),
 ]
+# Each shape's illusion twin: the same frame, with the illusion's look while empty.
+ILLUSIONS = ['bed', 'button', 'carpet', 'chest', 'daylight_detector', 'door', 'fence', 'fence_gate', 'ladder',
+             'layered_block', 'pane', 'pressure_plate', 'slab', 'stairs', 'trapdoor', 'wall']
+_by_id = {f[0]: f for f in FRAMES}
+for _s in ILLUSIONS:
+    _bid, _name, _template, _model = _by_id['frame_' + _s]
+    if _model == 'block/frame':
+        _model = 'block/illusion'
+    FRAMES.append(('illusion_' + _s, _name.replace('Frame ', 'Illusion '), _template, _model))
 
 def frame_png(path, inner):
     """A 16x16 wooden frame: a dark rim, a lighter border, a brace corner to corner, `inner` within."""
@@ -650,9 +665,9 @@ if BC:
             wjson('assets/chipped/models/item/%s.json' % bid, {'parent': 'minecraft:item/generated',
                   'textures': {'layer0': 'chipped:' + model}})
         item_model(bid, 'chipped:item/' + bid)
-        # Its own drop: a door's lower half, a double slab two, as vanilla's.
+        # Its own drop: a door's lower half, a bed's head, a double slab two, as vanilla's.
         src = os.path.join(VLOOT, template.split(':')[1] + '.json')
-        if template in ('minecraft:oak_door', 'minecraft:oak_slab') and os.path.exists(src):
+        if template in ('minecraft:oak_door', 'minecraft:oak_slab', 'minecraft:white_bed') and os.path.exists(src):
             loot = swap(load(src), {template: full})
         else:
             loot = {'type': 'minecraft:block', 'pools': [{'rolls': 1, 'entries': [{'type': 'minecraft:item', 'name': full}],

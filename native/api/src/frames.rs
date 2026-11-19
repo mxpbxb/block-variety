@@ -8,10 +8,15 @@
 //!
 //! A frame's block model is empty; its block entity draws it, every box of its shape (its
 //! template's, read from its state) with the frame's own texture while empty, else with the
-//! textures of the block in it. The Illusion Block draws the block in it whole, model and all.
+//! textures of the block in it. The Illusion Block draws the block in it whole, model and all; each
+//! other illusion frame is its frame's shape, with the illusion's look while empty.
+//!
+//! The chests keep a chest's 27 slots (a mod container); the daylight detectors set their power from
+//! the sky, as vanilla's (`DaylightDetectorBlock.updateSignalStrength`), for their block entity is
+//! this one, not vanilla's.
 use horizon_client::mod_api::{
-    BlockEntityDraw, BlockEntityEvent, BlockEntitySubmitEvent, BlockEntityUpdateTagEvent, BlockStateId, Compound, CubeFace,
-    DestroyBlockEvent, Direction, Flow, Host, ItemStack, Tag, UseItemOnEvent,
+    BlockEntityDraw, BlockEntityEvent, BlockEntitySubmitEvent, BlockEntityTickEvent, BlockEntityUpdateTagEvent, BlockStateId,
+    Compound, CubeFace, DestroyBlockEvent, Direction, Flow, Host, ItemStack, ModContainer, Tag, UseItemOnEvent,
 };
 
 use crate::groups::FRAMES;
@@ -29,8 +34,81 @@ pub fn is_frame(block: &str) -> bool {
     FRAMES.contains(&block)
 }
 
-fn shape(block: &str) -> &str {
-    block.split(':').nth(1).unwrap_or("")
+/// The shape a frame is drawn as: an illusion frame's is its frame's (`illusion_slab` a
+/// `frame_slab`), but for the Illusion Block, which draws its block whole.
+fn shape(block: &str) -> String {
+    let id = block.split(':').nth(1).unwrap_or("");
+    match id.strip_prefix("illusion_") {
+        Some(rest) if rest != "block" => format!("frame_{rest}"),
+        _ => id.to_owned(),
+    }
+}
+
+fn is_illusion(block: &str) -> bool {
+    block.split(':').nth(1).is_some_and(|id| id.starts_with("illusion_"))
+}
+
+/// A frame chest's container: a chest's 27 slots, every face reaching them all.
+pub fn container(block: &str) -> Option<ModContainer> {
+    if !is_frame(block) || shape(block) != "frame_chest" {
+        return None;
+    }
+    let all: Vec<usize> = (0..27).collect();
+    Some(ModContainer {
+        slots: 27,
+        faces: std::array::from_fn(|_| all.clone()),
+        inputs: all.clone(),
+        outputs: all,
+        menu: Some("minecraft:generic_9x3".to_owned()),
+    })
+}
+
+pub fn ticks(block: &str) -> bool {
+    is_frame(block) && shape(block) == "frame_daylight_detector"
+}
+
+/// `Level.getTimeOfDay` for a day time in ticks: 0 to 1, 0.25 at noon... as vanilla's curve.
+fn time_of_day(day_time: i64) -> f32 {
+    let d = ((day_time.rem_euclid(24000)) as f64 / 24000.0 - 0.25).rem_euclid(1.0);
+    let e = 0.5 - (d * std::f64::consts::PI).cos() / 2.0;
+    ((d * 2.0 + e) / 3.0) as f32
+}
+
+/// A daylight detector's power, as `DaylightDetectorBlock.updateSignalStrength`: the sky light less
+/// the sky's darkening, by the sun's angle; inverted, what is left of 15.
+fn daylight_power(sky: u8, day_time: i64, rain: f32, thunder: f32, inverted: bool) -> u8 {
+    let tod = time_of_day(day_time);
+    let mut g = 1.0 - ((tod * std::f32::consts::TAU).cos() * 2.0 + 0.5);
+    g = 1.0 - g.clamp(0.0, 1.0);
+    g *= 1.0 - rain * 5.0 / 16.0;
+    g *= 1.0 - thunder * 5.0 / 16.0;
+    let darken = ((1.0 - g) * 11.0) as i32;
+    let mut i = i32::from(sky) - darken;
+    if inverted {
+        i = 15 - i;
+    } else if i > 0 {
+        let mut f = tod * std::f32::consts::TAU;
+        let to = if f < std::f32::consts::PI { 0.0 } else { std::f32::consts::TAU };
+        f += (to - f) * 0.2;
+        i = (i as f32 * f.cos()).round() as i32;
+    }
+    i.clamp(0, 15) as u8
+}
+
+/// A frame daylight detector, ticked: its power from the sky, every second.
+pub fn tick(host: &mut dyn Host, event: &mut BlockEntityTickEvent<'_>) {
+    if event.entity.id != ENTITY || !ticks(&host.block(event.pos)) {
+        return;
+    }
+    let day = host.day_time();
+    if day % 20 != 0 {
+        return;
+    }
+    let (_, sky) = host.light(event.pos);
+    let (rain, thunder) = host.weather();
+    let inverted = host.block_property(event.pos, "inverted").as_deref() == Some("true");
+    let power = daylight_power(sky, day, rain, thunder, inverted);
+    host.set_block_property(event.pos, "power", &power.to_string());
 }
 
 /// The block in a frame's compound, if any.
@@ -171,6 +249,17 @@ fn boxes(kind: &str, prop: &dyn Fn(&str) -> Option<String>) -> Vec<Box6> {
             [0.0, 0.0, 0.0, 16.0, 3.0, 16.0]
         }],
         "frame_ladder" => vec![turn([0.0, 0.0, 15.0, 16.0, 16.0, 16.0], &facing)],
+        "frame_chest" => vec![[1.0, 0.0, 1.0, 15.0, 14.0, 15.0]],
+        "frame_daylight_detector" => vec![[0.0, 0.0, 0.0, 16.0, 6.0, 16.0]],
+        "frame_bed" => {
+            // Facing north, the head is the north half; each half has its legs at its far end.
+            let legs_at = if p("part") == "head" { 0.0 } else { 13.0 };
+            let mut out = vec![[0.0, 3.0, 0.0, 16.0, 9.0, 16.0]];
+            for x in [0.0, 13.0] {
+                out.push(turn([x, 0.0, legs_at, x + 3.0, 3.0, legs_at + 3.0], &facing));
+            }
+            out
+        }
         "frame_carpet" => vec![[0.0, 0.0, 0.0, 16.0, 1.0, 16.0]],
         "frame_pressure_plate" => vec![[1.0, 0.0, 1.0, 15.0, if is("powered") { 0.5 } else { 1.0 }, 15.0]],
         "frame_layered_block" => {
@@ -243,6 +332,58 @@ fn draw_slope(host: &dyn Host, draw: &mut BlockEntityDraw, facing: &str, top: bo
     draw.pop();
 }
 
+/// The heights (0 or 1) of a slope's top at its NW, NE, SE and SW corners, facing north, by its
+/// stairs shape: straight, high along the north; an outer corner, high at one corner; an inner
+/// corner, low at one.
+fn edged_heights(shape: &str) -> [f32; 4] {
+    match shape {
+        "outer_left" => [1.0, 0.0, 0.0, 0.0],
+        "outer_right" => [0.0, 1.0, 0.0, 0.0],
+        "inner_left" => [1.0, 1.0, 0.0, 1.0],
+        "inner_right" => [1.0, 1.0, 1.0, 0.0],
+        _ => [1.0, 1.0, 0.0, 0.0],
+    }
+}
+
+/// An edged slope: its top a surface over its corners' heights, split corner to corner along the
+/// diagonal whose ends are level, and its sides down to its foot. Each face both ways round.
+fn draw_edged(host: &dyn Host, draw: &mut BlockEntityDraw, facing: &str, top: bool, shape: &str, faces: &[(String, Option<u32>); 6]) {
+    let yaw = match facing {
+        "west" => 90.0,
+        "south" => 180.0,
+        "east" => 270.0,
+        _ => 0.0,
+    };
+    let h = edged_heights(shape);
+    draw.push();
+    draw.rotate_about([0.0, 1.0, 0.0], yaw, [0.5, 0.0, 0.5]);
+    let y = |v: f32| if top { 1.0 - v } else { v };
+    // NW, NE, SE, SW at their heights, and at the foot.
+    let xz = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+    let up = |i: usize| [xz[i][0], y(h[i]), xz[i][1]];
+    let foot = |i: usize| [xz[i][0], y(0.0), xz[i][1]];
+    let quad = |host: &dyn Host, draw: &mut BlockEntityDraw, face: &(String, Option<u32>), c: [[f32; 3]; 4]| {
+        let tint = face.1.unwrap_or(0xFF_FF_FF);
+        host.draw_quad(draw, &face.0, c, [0.0, 0.0, 16.0, 16.0], tint);
+        host.draw_quad(draw, &face.0, [c[3], c[2], c[1], c[0]], [16.0, 0.0, 0.0, 16.0], tint);
+    };
+    let (bottom, upf) = (&faces[if top { 1 } else { 0 }], &faces[1]);
+    quad(host, draw, bottom, [foot(3), foot(0), foot(1), foot(2)]);
+    // The top: two triangles (quads with a corner twice).
+    let (a, b, c, d) = if h[1] == h[3] { (0, 1, 2, 3) } else { (1, 2, 3, 0) };
+    quad(host, draw, upf, [up(a), up(b), up(d), up(d)]);
+    quad(host, draw, upf, [up(b), up(c), up(d), up(d)]);
+    // The sides: north, east, south, west, from each corner to the next.
+    for (i, side) in [(0usize, 2usize), (1, 5), (2, 3), (3, 4)] {
+        let j = (i + 1) % 4;
+        if h[i] == 0.0 && h[j] == 0.0 {
+            continue;
+        }
+        quad(host, draw, &faces[side], [up(i), foot(i), foot(j), up(j)]);
+    }
+    draw.pop();
+}
+
 pub fn block_entity(event: &BlockEntityEvent<'_>) -> Option<(String, Compound)> {
     is_frame(event.block).then(|| (ENTITY.to_owned(), Compound::default()))
 }
@@ -256,6 +397,8 @@ pub fn submit(host: &dyn Host, event: &mut BlockEntitySubmitEvent<'_>) {
         return;
     }
     let kind = shape(event.block);
+    let kind = kind.as_str();
+    let empty = if is_illusion(event.block) { ILLUSION } else { EMPTY };
     let state = event.state;
     let filled = mimic(&event.entity.nbt);
     let mimic_state = filled.as_deref().and_then(|m| host.default_state(m));
@@ -270,10 +413,13 @@ pub fn submit(host: &dyn Host, event: &mut BlockEntitySubmitEvent<'_>) {
         draw.keep();
         return;
     }
-    let faces = faces(host, mimic_state, EMPTY);
+    let faces = faces(host, mimic_state, empty);
     let prop = |k: &str| host.block_state_property(state, k).map(str::to_owned);
     if kind == "frame_slope" {
         draw_slope(host, draw, &prop("facing").unwrap_or_default(), prop("half").as_deref() == Some("top"), &faces);
+    } else if kind == "frame_edged_slope" {
+        let shape = prop("shape").unwrap_or_default();
+        draw_edged(host, draw, &prop("facing").unwrap_or_default(), prop("half").as_deref() == Some("top"), &shape, &faces);
     } else {
         for b in boxes(kind, &prop) {
             draw_box(host, draw, b, &faces);
@@ -282,13 +428,28 @@ pub fn submit(host: &dyn Host, event: &mut BlockEntitySubmitEvent<'_>) {
     draw.keep();
 }
 
-/// The other half of a door at `pos` in state string `state`, if it is one.
+/// The other half of a door or a bed at `pos` in state string `state`, if it is one.
 fn other_half(pos: [i32; 3], state: &str) -> Option<[i32; 3]> {
-    if !state.starts_with("block_variety:frame_door") {
-        return None;
-    }
+    let block = state.split('[').next().unwrap_or(state);
     let [x, y, z] = pos;
-    Some(if state.contains("half=upper") { [x, y - 1, z] } else { [x, y + 1, z] })
+    match shape(block).as_str() {
+        "frame_door" => Some(if state.contains("half=upper") { [x, y - 1, z] } else { [x, y + 1, z] }),
+        "frame_bed" => {
+            // A bed faces from its foot to its head.
+            let (dx, dz) = if state.contains("facing=south") {
+                (0, 1)
+            } else if state.contains("facing=west") {
+                (-1, 0)
+            } else if state.contains("facing=east") {
+                (1, 0)
+            } else {
+                (0, -1)
+            };
+            let s = if state.contains("part=head") { -1 } else { 1 };
+            Some([x + dx * s, y, z + dz * s])
+        }
+        _ => None,
+    }
 }
 
 fn set_mimic(host: &mut dyn Host, pos: [i32; 3], mimic: Option<&str>) {
@@ -408,10 +569,10 @@ mod tests {
     fn every_frame_draws_something() {
         for f in FRAMES {
             let kind = shape(f);
-            if kind == "frame_slope" || kind == "illusion_block" {
+            if kind == "frame_slope" || kind == "frame_edged_slope" || kind == "illusion_block" {
                 continue;
             }
-            let b = boxes(kind, &props(&[("facing", "north"), ("up", "true"), ("layers", "3"), ("face", "wall")]));
+            let b = boxes(&kind, &props(&[("facing", "north"), ("up", "true"), ("layers", "3"), ("face", "wall")]));
             assert!(!b.is_empty(), "{f}");
             for x in &b {
                 assert!((0..3).all(|i| x[i] <= x[i + 3] && x[i] >= 0.0 && x[i + 3] <= 16.0), "{f} {x:?}");
@@ -424,5 +585,36 @@ mod tests {
         assert_eq!(other_half([0, 5, 0], "block_variety:frame_door[half=upper,facing=north]"), Some([0, 4, 0]));
         assert_eq!(other_half([0, 5, 0], "block_variety:frame_door[half=lower]"), Some([0, 6, 0]));
         assert_eq!(other_half([0, 5, 0], "block_variety:frame_slab[type=top]"), None);
+        assert_eq!(other_half([0, 5, 0], "block_variety:illusion_door[half=lower]"), Some([0, 6, 0]));
+    }
+
+    #[test]
+    fn a_bed_is_two_halves() {
+        assert_eq!(other_half([0, 5, 0], "block_variety:frame_bed[facing=north,part=foot]"), Some([0, 5, -1]));
+        assert_eq!(other_half([0, 5, -1], "block_variety:frame_bed[facing=north,part=head]"), Some([0, 5, 0]));
+        assert_eq!(other_half([3, 5, 0], "block_variety:illusion_bed[facing=east,part=head]"), Some([2, 5, 0]));
+    }
+
+    #[test]
+    fn illusions_take_their_frames_shape() {
+        assert_eq!(shape("block_variety:illusion_slab"), "frame_slab");
+        assert_eq!(shape("block_variety:illusion_block"), "illusion_block");
+        assert_eq!(shape("block_variety:frame_chest"), "frame_chest");
+        assert!(is_illusion("block_variety:illusion_wall") && !is_illusion("block_variety:frame_wall"));
+    }
+
+    #[test]
+    fn daylight_is_strong_at_noon_and_gone_at_midnight() {
+        assert_eq!(daylight_power(15, 6000, 0.0, 0.0, false), 15);
+        assert_eq!(daylight_power(15, 18000, 0.0, 0.0, false), 0);
+        assert_eq!(daylight_power(15, 18000, 0.0, 0.0, true), 11);
+        assert_eq!(daylight_power(0, 6000, 0.0, 0.0, false), 0);
+    }
+
+    #[test]
+    fn edged_slopes_turn_corners() {
+        assert_eq!(edged_heights("straight"), [1.0, 1.0, 0.0, 0.0]);
+        assert_eq!(edged_heights("outer_left").iter().sum::<f32>(), 1.0);
+        assert_eq!(edged_heights("inner_right").iter().sum::<f32>(), 3.0);
     }
 }

@@ -4,7 +4,7 @@ A [Horizon](https://playhorizon.dev) port of three decorative block mods in one:
 
 - **Chipped** (by Terrarium): its 2,258 block variants, every block but its workbenches.
 - **Chisel** (by the Chisel team): 2,371 of its variants, each a block of its own.
-- **Block Carpentry** (by PianoManu): 16 frames that take on the look of any block put in them.
+- **Block Carpentry** (by PianoManu): 37 frames that take on the look of any block put in them.
 
 Ported with the original creators' permission. Their art and designs are theirs.
 
@@ -25,9 +25,12 @@ the same mining tool and tool level.
 
 ## Frames
 
-The Frame Block, Slab, Stairs, Slope, Wall, Fence, Fence Gate, Door, Trapdoor, Pane, Carpet, Ladder,
-Button, Pressure Plate and Layered Block, and the Illusion Block. Right-click a frame with a block
-to fill it with that block's look (a door takes it on both halves); right-click it with the hammer
+The Frame Block, Falling Frame Block, Slab, Stairs, Slope, Edged Slope (a slope that turns corners,
+as stairs do), Wall, Fence, Fence Gate, Door, Trapdoor, Pane, Carpet, Ladder, Button, Pressure
+Plate, Layered Block, Bed, Chest (a chest's 27 slots) and Daylight Detector (powered by the sky, as
+vanilla's), and the Illusion Block. Each shape but the slopes and the Falling Frame Block has an
+illusion twin too, the same frame with the illusion's look while empty. Right-click a frame with a block
+to fill it with that block's look (a door or a bed takes it on both halves); right-click it with the hammer
 to take the block back out. A broken frame drops the block put in it. The frames keep their
 template's shape and behaviour: a door opens, a fence joins. The recipes are Block Carpentry's.
 
