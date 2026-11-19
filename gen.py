@@ -24,9 +24,11 @@ import png  # noqa: E402
 import blackstone  # noqa: E402
 # Chipped's blackstone (and gilded blackstone), darkened into Programmer Art Continuation's.
 BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
+# Chipped's basalt, brought onto the pack's basalt the same way.
+BASALT = re.compile(r'basalt_\d+$')
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -158,6 +160,9 @@ def copy_chipped_model(ref):
                     if ext == '.png' and BLACKSTONE.match(tp.split('/')[-1]):
                         out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
                         png.write(out, blackstone.darken(png.read(out)))
+                    elif ext == '.png' and BASALT.match(tp.split('/')[-1]):
+                        out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
+                        png.write(out, blackstone.basalt(png.read(out)))
 
 def models_in(state):
     found = []
@@ -341,6 +346,9 @@ def chisel_png(tex):
             return None
         meta.setdefault('animation', {})
     copy(src, 'assets/chipped/textures/%s.png' % to)
+    if to.startswith('block/chisel/basalt/'):
+        out = os.path.join(OUT, 'assets/chipped/textures', to + '.png')
+        png.write(out, blackstone.basalt(png.read(out), blackstone.CHISEL_BASALT_SRC))
     if meta:
         wjson('assets/chipped/textures/%s.png.mcmeta' % to, meta)
     made[tex] = 'chipped:' + to

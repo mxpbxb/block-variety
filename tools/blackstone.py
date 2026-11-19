@@ -28,6 +28,28 @@ def darken(im):
     return im
 
 
+# Chipped's basalt variants together, and the pack's basalt_side and basalt_top together. Chipped's
+# is lighter-spread and bluer; the pack's is a near-neutral grey with a trace of blue.
+BASALT_SRC = 81.2, 33.0
+BASALT_DST = 80.5, 19.1
+BASALT_TINT = (0, 0, 1)
+# Chisel's basalt (in vanilla basalt's group): darker and flatter than the pack's.
+CHISEL_BASALT_SRC = 50.1, 10.7
+
+
+def basalt(im, src=BASALT_SRC):
+    """Basalt onto the pack's: its lightness mapped onto the pack's spread, its colour the pack's grey."""
+    (sm, ss), (dm, ds) = src, BASALT_DST
+    px = im.px
+    for i in range(0, len(px), 4):
+        r, g, b, a = px[i:i + 4]
+        if a == 0:
+            continue
+        v = (0.299 * r + 0.587 * g + 0.114 * b - sm) / ss * ds + dm
+        px[i:i + 3] = bytes(max(0, min(255, round(v + t))) for t in BASALT_TINT)
+    return im
+
+
 def lightness_stats(paths):
     """Mean and spread of the lightness of `paths`' stone pixels (to set SRC_* from)."""
     import statistics
