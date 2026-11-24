@@ -28,7 +28,11 @@ BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
 BASALT = re.compile(r'basalt_\d+$')
 
 CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
-VERSION = "0.4.0"
+# Chipped 1.18.2's jar, and its textures recoloured to Programmer Art Continuation (`jars/pa1182`):
+# its blocks of vanilla blocks that Chipped 1.18.1 gave nothing to.
+CHIPPED2 = sys.argv[7] if len(sys.argv) > 7 else None
+PA2 = sys.argv[8] if len(sys.argv) > 8 else None
+VERSION = "0.5.0"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -136,25 +140,31 @@ def item_model(bid, model_ref):
 # ---- Chipped: kept as it is, its models and textures copied -----------------------------------
 CA = os.path.join(CHIPPED, 'assets/chipped')
 copied = set()
+# The groups Chipped 1.18.1 gave blocks to: Chipped 1.18.2 adds nothing to them.
+chipped_groups = set()
 
-def copy_chipped_model(ref):
-    """A chipped model, its chipped parents and its chipped textures."""
+def copy_chipped_model(ref, ca=None, pa=None):
+    """A chipped model, its chipped parents and its chipped textures (from the jar's assets `ca`, a
+    texture from the recoloured assets `pa` instead where it has one)."""
+    ca = ca or CA
     if not ref.startswith('chipped:') or ref in copied:
         return
     copied.add(ref)
     path = ref.split(':', 1)[1]
-    src = os.path.join(CA, 'models', path + '.json')
+    src = os.path.join(ca, 'models', path + '.json')
     if not os.path.isfile(src):
         raise FileNotFoundError(src)
     m = load(src)
     wjson('assets/chipped/models/%s.json' % path, m)
     if 'parent' in m:
-        copy_chipped_model(m['parent'])
+        copy_chipped_model(m['parent'], ca, pa)
     for tex in m.get('textures', {}).values():
         if tex.startswith('chipped:'):
             tp = tex.split(':', 1)[1]
             for ext in ('.png', '.png.mcmeta'):
-                s = os.path.join(CA, 'textures', tp + ext)
+                s = os.path.join(ca, 'textures', tp + ext)
+                if pa and os.path.exists(os.path.join(pa, 'textures', tp + ext)):
+                    s = os.path.join(pa, 'textures', tp + ext)
                 if os.path.exists(s):
                     copy(s, 'assets/chipped/textures/%s%s' % (tp, ext))
                     if ext == '.png' and BLACKSTONE.match(tp.split('/')[-1]):
@@ -218,6 +228,7 @@ for f in sorted(os.listdir(os.path.join(CA, 'blockstates')), key=lambda f: [int(
     title = base.replace('_', ' ').title()
     standing = None if item else 'chipped:' + bid.replace('wall_torch', 'torch')
     block(bid, template, group, '%s (Chipped %s)' % (title, n) if n else title, 'chipped', item, standing)
+    chipped_groups.add(group)
 
 # ---- Chisel: each forge blockstate variant flattened into a plain model -----------------------
 XA = os.path.join(CHISEL, 'assets/chisel')
@@ -580,6 +591,47 @@ for state in states:
             desc = ' '.join(w.replace('-', ' ').title() for w in state.split('/')[1:]) + ', ' + desc
         block(bid, template, group, '%s (%s)' % (base_name, desc), 'chisel')
 
+# ---- Chipped 1.18.2: the vanilla blocks Chipped 1.18.1 gave nothing to ---------------------------
+# Iron, raw iron, the logs, doors, leaves and the rest: a group of Chipped 1.18.1's (stone,
+# blackstone and so on) gets none of 1.18.2's blocks. Their textures are the recoloured ones of
+# `jars/pa1182` (Programmer Art Continuation's colours, by Recolor.java there) where it has one.
+if CHIPPED2:
+    CA2 = os.path.join(CHIPPED2, 'assets/chipped')
+    PAA = os.path.join(PA2, 'assets/chipped') if PA2 else None
+    for f in sorted(os.listdir(os.path.join(CA2, 'blockstates')), key=lambda f: [int(t) if t.isdigit() else t for t in re.split(r'(\d+)', f)]):
+        bid = f[:-5]
+        m = re.fullmatch(r'(.+)_(\d+)', bid)
+        base, n = (m.group(1), m.group(2)) if m else (bid, None)
+        if bid in WORKBENCHES or n is None:
+            continue
+        template, group = chipped_family(base)
+        if group in chipped_groups:
+            continue
+        if not exists(template):
+            left_out('chipped 1.18.2: no vanilla template', bid)
+            continue
+        if os.path.exists(os.path.join(OUT, 'assets/chipped/blockstates', f)):
+            left_out('chipped 1.18.2: id taken', bid)
+            continue
+        state = load(os.path.join(CA2, 'blockstates', f))
+        im = os.path.join(CA2, 'models/item', bid + '.json')
+        try:
+            for ref in models_in(state):
+                copy_chipped_model(ref, CA2, PAA)
+            if os.path.exists(im):
+                copy_chipped_model('chipped:item/' + bid, CA2, PAA)
+        except FileNotFoundError as e:
+            left_out('chipped 1.18.2: missing model', '%s (%s)' % (bid, os.path.basename(str(e))))
+            continue
+        wjson('assets/chipped/blockstates/%s.json' % bid, state)
+        item = template not in WALL
+        if item:
+            item_model(bid, 'chipped:item/' + bid if os.path.exists(im) else models_in(state)[0])
+        standing = None if item else 'chipped:' + bid.replace('wall_torch', 'torch')
+        block(bid, template, group, '%s (Chipped %s)' % (base.replace('_', ' ').title(), n), 'chipped', item, standing)
+        report.setdefault('chipped_1182', 0)
+        report['chipped_1182'] += 1
+
 # ---- The chisel: Chisel's iron chisel, the one way between a group's blocks --------------------
 copy(os.path.join(XA, 'textures/items/chisel_iron.png'), 'assets/chipped/textures/item/chisel.png')
 wjson('assets/chipped/models/item/chisel.json', {'parent': 'minecraft:item/handheld', 'textures': {'layer0': 'chipped:item/chisel'}})
@@ -749,8 +801,49 @@ if TC:
     lang['block.chipped.item_trash_can'] = 'Item Trash Can'
     trash.append('chipped:item_trash_can')
 
+# ---- Other mods' stones of the same name, in their group ------------------------------------------
+# Structure Add-on's limestone and marble join Chisel's limestone and marble (first, as a vanilla
+# block heads its group), and its andesite and basalt join vanilla's: the chisel and the stonecutter
+# turn them into one another. Without Structure Add-on they are simply not there.
+ALT_STONES = [('structure_addon:limestone', 'chisel_limestone'), ('structure_addon:marble', 'chisel_marble'),
+              ('structure_addon:andesite', 'minecraft:andesite'), ('structure_addon:basalt', 'minecraft:basalt')]
+alt_ids = set()
+for alt, into in ALT_STONES:
+    if into.startswith('minecraft:'):
+        key = into if into in groups else None
+    else:
+        key = next((g for g in group_order if groups[g] and groups[g][0].startswith('chipped:%s_' % into)
+                    and not groups[g][0].startswith('chipped:%spillar' % into)), None)
+    if key is None:
+        left_out('alt stone: no group', alt)
+        continue
+    g = groups[key]
+    g.insert(1 if g[0].startswith('minecraft:') else 0, alt)
+    alt_ids.add(alt)
+
+# ---- The stonecutter: every block from any block of its group ------------------------------------
+# For JEI (and the stonecutter itself): each block of a group is cut from the group's item tag
+# (`#chipped:group/<group>`), so each block's recipe shows what it is made from.
+itemless_set = set(itemless) | {'minecraft:wall_torch', 'minecraft:redstone_wall_torch'}
+cut = 0
+for key in group_order:
+    members = [b for b in groups[key] if b not in itemless_set]
+    if len(members) < 2:
+        continue
+    slug = key.split(':', 1)[1]
+    wjson('data/chipped/tags/item/group/%s.json' % slug,
+          {'values': [{'id': b, 'required': False} if b in alt_ids else b for b in members]})
+    for b in members:
+        if b in alt_ids:
+            continue
+        name = b.replace(':', '_') if b.startswith('minecraft:') else b.split(':', 1)[1]
+        wjson('data/chipped/recipe/stonecutting/%s.json' % name, {'type': 'minecraft:stonecutting',
+              'ingredient': '#chipped:group/' + slug, 'result': {'id': b, 'count': 1}})
+        cut += 1
+report['stonecutting'] = cut
+
 # ---- The groups, for the native part ------------------------------------------------------------
-NATIVE = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'native/api/src/groups.rs')
+NATIVE = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'native-sdk/src/groups.rs')
 with open(NATIVE, 'w', newline='\n') as f:
     f.write('// Written by gen.py: each group, its vanilla block first (when it has one), then its variants.\n')
     f.write('pub const GROUPS: &[&[&str]] = &[\n')
@@ -810,7 +903,8 @@ open(NATIVE, 'w', newline='\n').write(s)
 import subprocess
 subprocess.run([sys.executable, '-I', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools', 'names.py'),
                 OUT, NATIVE, os.path.join(os.path.dirname(NATIVE), 'names.rs')], check=True)
-summary = {'blocks': report['blocks'], 'chipped': len(tabs['chipped']), 'chisel': len(tabs['chisel']), 'frames': len(frames),
+summary = {'blocks': report['blocks'], 'chipped_1182': report.get('chipped_1182', 0),
+           'stonecutting': report['stonecutting'], 'chipped': len(tabs['chipped']), 'chisel': len(tabs['chisel']), 'frames': len(frames),
            'itemless': len(itemless), 'groups': len(group_order), 'biggest_group': max(len(g) for g in groups.values()),
            'left_out': {k: len(v) for k, v in report['left_out'].items()}}
 with open(os.path.join(os.path.dirname(os.path.abspath(OUT)), 'report.json'), 'w') as f:

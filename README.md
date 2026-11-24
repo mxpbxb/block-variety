@@ -2,7 +2,8 @@
 
 A [Horizon](https://playhorizon.dev) port of three decorative block mods in one, and a trash can:
 
-- **Chipped** (by Terrarium), from its 1.18.1 jar: its 2,487 block variants, every block but its workbenches.
+- **Chipped** (by Terrarium), from its 1.18.1 jar: its 2,487 block variants, every block but its
+  workbenches; and from its 1.18.2 jar, 2,720 more for the vanilla blocks 1.18.1 gave none to.
 - **Chisel** (by the Chisel team): 2,371 of its variants, each a block of its own.
 - **Block Carpentry** (by PianoManu): 37 frames that take on the look of any block put in them.
 - **Trash Cans** (by SuperMartijn642): its Item Trash Can.
@@ -21,7 +22,24 @@ There are no Chipped workbenches. The chisel does all of it:
   the one before), keeping its facing, connections and the rest of its state.
 
 A group is a vanilla block's family, the vanilla block first (stone, obsidian, the planks, glass,
-torches, lanterns and the rest), or a Chisel block of its own.
+torches, lanterns and the rest), or a Chisel block of its own. [Structure Add-on](https://github.com/mxpbxb/structure-addon)'s
+limestone and marble head Chisel's limestone and marble groups, and its andesite and basalt are in
+vanilla's, so they turn into those blocks too.
+
+## The stonecutter, and JEI
+
+Every block of a group is also cut in the stonecutter from any block of its group (the group's item
+tag, `#block_variety:group/<group>`), so a recipe viewer such as JEI shows how each block is made
+and what each block makes.
+
+## Chipped 1.18.2
+
+Chipped 1.18.2's blocks come in only for the vanilla blocks that Chipped 1.18.1 gave none to: iron
+and the other metal blocks, raw ore blocks, the logs, stems, leaves, doors, trapdoors, ladders,
+bookshelves, glazed terracotta, deepslate, tuff, calcite, amethyst and the rest. A group with 1.18.1
+blocks (stone, blackstone and so on) gets none of 1.18.2's. Their textures are Chipped 1.18.2's
+recoloured to Programmer Art Continuation (`jars/pa1182`, by its `Recolor.java`: each family's
+lightness and colour matched to the pack's textures in CIELAB, then snapped to the pack's palette).
 
 Chipped's blackstone and gilded blackstone are darkened into Programmer Art Continuation's
 blackstone (`tools/blackstone.py`): each pixel's lightness mapped onto the pack's, in its neutral
@@ -69,12 +87,14 @@ Install both:
 `gen.py` writes the content mod from the unpacked original jars and vanilla 26.3's data:
 
 ```
-python3 -I gen.py <Chipped 1.18.1 jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar> <Trash Cans jar>
+python3 -I gen.py <Chipped 1.18.1 jar> <Chisel jar> <vanilla 26.3 data> content <Block Carpentry jar> <Trash Cans jar> <Chipped 1.18.2 jar> jars/pa1182
 cd content && cargo horizon-mod build
-python3 -I tools/packnative.py native block_variety_native.hnmod
+cd ../native-sdk && cargo horizon-mod build
 ```
 
-It also writes `native/api/src/groups.rs` (the groups, frames and itemless blocks). `tools/png.py`
+It also writes `native-sdk/src/groups.rs` (the groups, frames and itemless blocks) and `names.rs`.
+`native-sdk/` is the native part as a Horizon SDK project (its `.horizon/sdk` not in the
+repository); `native/` is the older mixin crate it was ported from. `tools/png.py`
 reads and writes the PNGs it flattens Chisel's layered textures with.
 
 ## Credits

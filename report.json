@@ -1,13 +1,16 @@
 {
- "blocks": 4872,
- "chipped": 2487,
+ "blocks": 7592,
+ "chipped_1182": 2720,
+ "stonecutting": 7848,
+ "chipped": 5207,
  "chisel": 2371,
  "frames": 37,
  "itemless": 14,
- "groups": 244,
- "biggest_group": 70,
+ "groups": 327,
+ "biggest_group": 168,
  "left_out": {
-  "chisel: model not a plain cube, or a vanilla texture under an overlay": 403
+  "chisel: model not a plain cube, or a vanilla texture under an overlay": 403,
+  "chipped 1.18.2: missing model": 1
  },
  "left_out_list": {
   "chisel: model not a plain cube, or a vanilla texture under an overlay": [
@@ -414,6 +417,9 @@
    "waterstone slanted",
    "waterstone weaver",
    "waterstone zag"
+  ],
+  "chipped 1.18.2: missing model": [
+   "warped_stem_11 (warped_stem_11_horizontal.json)"
   ]
  }
 }
