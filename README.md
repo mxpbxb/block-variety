@@ -26,6 +26,15 @@ torches, lanterns and the rest), or a Chisel block of its own. [Structure Add-on
 limestone and marble head Chisel's limestone and marble groups, and its andesite and basalt are in
 vanilla's, so they turn into those blocks too.
 
+## Crafting
+
+The groups with no vanilla block (Chisel's ancient and arcane stone, laboratory, factory, brownstone,
+tyrian, temple, voidstone, its metals and the rest, and Chipped's wood glass) each have a crafting
+recipe from vanilla things, mostly a ring of eight of a block around one thing that marks it (factory:
+stone around an iron ingot; laboratory: stone around quartz; brownstone: sandstone around brown dye).
+Coke is a coal block smelted. Once one block is made, the chisel and the stonecutter give the rest of
+its group.
+
 ## The stonecutter, and JEI
 
 Every block of a group is also cut in the stonecutter from any block of its group (the group's item
