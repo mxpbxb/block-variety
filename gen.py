@@ -842,6 +842,90 @@ for key in group_order:
         cut += 1
 report['stonecutting'] = cut
 
+# ---- Crafting: a way into the groups that have no vanilla block ----------------------------------
+# Chisel's own stones (ancient stone, laboratory, factory, brownstone...) and Chipped's wood glass have
+# no vanilla block to chisel or cut from, so each gets a crafting recipe from vanilla things (after
+# Chisel's own: a ring of eight of a block around one thing that colours or marks it). Once one block
+# of the group is made, the chisel and the stonecutter turn it into the rest.
+member_group = {b: k for k in group_order for b in groups[k]}
+def ing(x):  # 'G:<block>' is any block of that block's group
+    if x.startswith('G:'):
+        return '#chipped:group/' + member_group['chipped:' + x[2:]].split(':', 1)[1]
+    return x if ':' in x else 'minecraft:' + x
+def ring(out, around, middle, count=8):
+    return (out, {'type': 'minecraft:crafting_shaped', 'key': {'A': ing(around), 'M': ing(middle)},
+                  'pattern': ['AAA', 'AMA', 'AAA']}, count)
+def square(out, a, b=None, count=4):
+    return (out, {'type': 'minecraft:crafting_shaped', 'key': {'A': ing(a), 'B': ing(b or a)},
+                  'pattern': ['AB', 'BA']}, count)
+def shapeless(out, items, count=1):
+    return (out, {'type': 'minecraft:crafting_shapeless', 'ingredients': [ing(i) for i in items]}, count)
+CRAFTS = [
+    ring('chisel_ancient_stone_raw', 'stone_bricks', 'gold_nugget'),
+    ring('chisel_arcane_stone_raw', 'stone_bricks', 'amethyst_shard'),
+    ring('chisel_bloodmagic_blankrune', 'stone_bricks', 'redstone_block'),
+    ring('chisel_temple_bricks', 'stone_bricks', 'cyan_dye'),
+    shapeless('chisel_templemossy_bricks', ['G:chisel_temple_bricks', 'vine']),
+    ('chisel_block_charcoal_raw', {'type': 'minecraft:crafting_shaped', 'key': {'C': 'minecraft:charcoal'},
+                                   'pattern': ['CCC', 'CCC', 'CCC']}, 1),
+    ring('chisel_certus_raw', 'quartz_block', 'light_blue_dye'),
+    ring('chisel_antiblock_white', 'stone', 'glowstone_dust'),
+    ring('chisel_factory_plating', 'stone', 'iron_ingot'),
+    ring('chisel_laboratory_largetile', 'stone', 'quartz'),
+    ring('chisel_valentines_1', 'stone', 'pink_dye'),
+    ring('chisel_futura_controller', 'smooth_stone', 'redstone'),
+    ring('chisel_tyrian_tyrian', 'smooth_stone', 'iron_ingot'),
+    ring('chisel_brownstone_default', 'sandstone', 'brown_dye'),
+    ring('chisel_cloud_cloud', 'white_wool', 'feather'),
+    square('chisel_concrete_default', 'gravel', 'sand'),
+    square('chisel_marble_raw', 'calcite'),
+    square('chisel_limestone_raw', 'dripstone_block'),
+    ('chisel_marblepillar_default', {'type': 'minecraft:crafting_shaped', 'key': {'M': ing('G:chisel_marble_raw')},
+                                     'pattern': ['M', 'M', 'M']}, 3),
+    ('chisel_marbleslab_marble_blocks', {'type': 'minecraft:crafting_shaped', 'key': {'M': ing('G:chisel_marble_raw')},
+                                         'pattern': ['MMM']}, 6),
+    ring('chisel_paper_plain', 'paper', 'stick'),
+    ring('chisel_technical_scaffold', 'iron_bars', 'redstone'),
+    ring('chisel_technical_new_sturdy', 'iron_bars', 'copper_ingot'),
+    ring('chisel_voidstone_raw', 'obsidian', 'ender_pearl'),
+    shapeless('chisel_voidstone_animated_raw', ['G:chisel_voidstone_raw', 'glowstone_dust']),
+    shapeless('chisel_voidstone_runes_purple', ['G:chisel_voidstone_raw', 'amethyst_shard']),
+]
+# Chisel's metals have no vanilla ingot of their own: eight of the nearest vanilla metal, marked by the middle.
+for metal, around, middle in [('aluminum', 'iron_ingot', 'white_dye'), ('bronze', 'copper_ingot', 'iron_ingot'),
+                              ('cobalt', 'iron_ingot', 'blue_dye'), ('electrum', 'gold_ingot', 'iron_ingot'),
+                              ('invar', 'iron_ingot', 'gray_dye'), ('lead', 'iron_ingot', 'purple_dye'),
+                              ('nickel', 'iron_ingot', 'yellow_dye'), ('platinum', 'iron_ingot', 'light_blue_dye'),
+                              ('silver', 'iron_ingot', 'light_gray_dye'), ('steel', 'iron_ingot', 'coal'),
+                              ('tin', 'iron_ingot', 'bone_meal'), ('uranium', 'iron_ingot', 'lime_dye')]:
+    CRAFTS.append(ring('chisel_metals_%s_scaffold' % metal, around, middle))
+# Chipped's wood glass: glass framed in planks; its panes from it, like vanilla's.
+for wood in ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'crimson', 'warped']:
+    if 'chipped:%s_wood_glass_1' % wood not in member_group:
+        continue
+    CRAFTS.append(('%s_wood_glass_1' % wood, {'type': 'minecraft:crafting_shaped',
+                   'key': {'P': 'minecraft:%s_planks' % wood, 'G': 'minecraft:glass'},
+                   'pattern': ['PGP', 'G G', 'PGP']}, 4))
+    CRAFTS.append(('%s_wood_glass_pane_1' % wood, {'type': 'minecraft:crafting_shaped',
+                   'key': {'G': ing('G:%s_wood_glass_1' % wood)}, 'pattern': ['GGG', 'GGG']}, 16))
+crafted = set()
+for out, recipe, count in CRAFTS:
+    b = 'chipped:' + out
+    assert b in member_group and b not in itemless_set, b
+    crafted.add(member_group[b])
+    wjson('data/chipped/recipe/crafting/%s.json' % out,
+          {**recipe, 'category': 'building', 'result': {'id': b, 'count': count}})
+# Coke: coal blocks baked, as Chisel's coke came from coal.
+for kind, t in [('smelting', 200), ('blasting', 100)]:
+    wjson('data/chipped/recipe/crafting/chisel_block_coal_coke_raw_%s.json' % kind,
+          {'type': 'minecraft:' + kind, 'category': 'blocks', 'ingredient': 'minecraft:coal_block',
+           'result': {'id': 'chipped:chisel_block_coal_coke_raw'}, 'experience': 0.1, 'cookingtime': t})
+crafted.add(member_group['chipped:chisel_block_coal_coke_raw'])
+# Every group without a vanilla block can now be made.
+missing = [k for k in group_order if not groups[k][0].startswith('minecraft:') and k not in crafted]
+assert not missing, missing
+report['crafting'] = len(CRAFTS) + 2
+
 # ---- The groups, for the native part ------------------------------------------------------------
 NATIVE = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'native-sdk/src/groups.rs')
 with open(NATIVE, 'w', newline='\n') as f:
@@ -904,7 +988,7 @@ import subprocess
 subprocess.run([sys.executable, '-I', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools', 'names.py'),
                 OUT, NATIVE, os.path.join(os.path.dirname(NATIVE), 'names.rs')], check=True)
 summary = {'blocks': report['blocks'], 'chipped_1182': report.get('chipped_1182', 0),
-           'stonecutting': report['stonecutting'], 'chipped': len(tabs['chipped']), 'chisel': len(tabs['chisel']), 'frames': len(frames),
+           'stonecutting': report['stonecutting'], 'crafting': report['crafting'], 'chipped': len(tabs['chipped']), 'chisel': len(tabs['chisel']), 'frames': len(frames),
            'itemless': len(itemless), 'groups': len(group_order), 'biggest_group': max(len(g) for g in groups.values()),
            'left_out': {k: len(v) for k, v in report['left_out'].items()}}
 with open(os.path.join(os.path.dirname(os.path.abspath(OUT)), 'report.json'), 'w') as f:
