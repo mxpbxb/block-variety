@@ -32,7 +32,7 @@ CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
 # its blocks of vanilla blocks that Chipped 1.18.1 gave nothing to.
 CHIPPED2 = sys.argv[7] if len(sys.argv) > 7 else None
 PA2 = sys.argv[8] if len(sys.argv) > 8 else None
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -821,9 +821,10 @@ for alt, into in ALT_STONES:
     g.insert(1 if g[0].startswith('minecraft:') else 0, alt)
     alt_ids.add(alt)
 
-# ---- The stonecutter: every block from any block of its group ------------------------------------
-# For JEI (and the stonecutter itself): each block of a group is cut from the group's item tag
-# (`#chipped:group/<group>`), so each block's recipe shows what it is made from.
+# ---- Each group's item tag (`#chipped:group/<group>`), for the crafting recipes below --------------
+# 0.5.0 also cut every block of a group from that tag in the stonecutter. 0.5.1 drops those recipes:
+# a group of n blocks made n recipes of n items each (343,026 entries in all, synced to every player),
+# which cost a lot of memory. The chisel still turns any block of a group into the rest.
 itemless_set = set(itemless) | {'minecraft:wall_torch', 'minecraft:redstone_wall_torch'}
 cut = 0
 for key in group_order:
@@ -833,20 +834,13 @@ for key in group_order:
     slug = key.split(':', 1)[1]
     wjson('data/chipped/tags/item/group/%s.json' % slug,
           {'values': [{'id': b, 'required': False} if b in alt_ids else b for b in members]})
-    for b in members:
-        if b in alt_ids:
-            continue
-        name = b.replace(':', '_') if b.startswith('minecraft:') else b.split(':', 1)[1]
-        wjson('data/chipped/recipe/stonecutting/%s.json' % name, {'type': 'minecraft:stonecutting',
-              'ingredient': '#chipped:group/' + slug, 'result': {'id': b, 'count': 1}})
-        cut += 1
 report['stonecutting'] = cut
 
 # ---- Crafting: a way into the groups that have no vanilla block ----------------------------------
 # Chisel's own stones (ancient stone, laboratory, factory, brownstone...) and Chipped's wood glass have
 # no vanilla block to chisel or cut from, so each gets a crafting recipe from vanilla things (after
 # Chisel's own: a ring of eight of a block around one thing that colours or marks it). Once one block
-# of the group is made, the chisel and the stonecutter turn it into the rest.
+# of the group is made, the chisel turns it into the rest.
 member_group = {b: k for k in group_order for b in groups[k]}
 def ing(x):  # 'G:<block>' is any block of that block's group
     if x.startswith('G:'):

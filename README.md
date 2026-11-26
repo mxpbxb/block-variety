@@ -32,14 +32,13 @@ The groups with no vanilla block (Chisel's ancient and arcane stone, laboratory,
 tyrian, temple, voidstone, its metals and the rest, and Chipped's wood glass) each have a crafting
 recipe from vanilla things, mostly a ring of eight of a block around one thing that marks it (factory:
 stone around an iron ingot; laboratory: stone around quartz; brownstone: sandstone around brown dye).
-Coke is a coal block smelted. Once one block is made, the chisel and the stonecutter give the rest of
-its group.
+Coke is a coal block smelted. Once one block is made, the chisel gives the rest of its group.
 
-## The stonecutter, and JEI
+## No stonecutter recipes
 
-Every block of a group is also cut in the stonecutter from any block of its group (the group's item
-tag, `#block_variety:group/<group>`), so a recipe viewer such as JEI shows how each block is made
-and what each block makes.
+0.5.0 cut every block of a group in the stonecutter from any block of its group. 0.5.1 removes those
+recipes: they took a lot of memory (a group of n blocks made n recipes of n items each, 343,026
+entries in all, sent to every player). Use the chisel.
 
 ## Chipped 1.18.2
 
