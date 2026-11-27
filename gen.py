@@ -22,6 +22,7 @@ import hashlib, json, os, re, shutil, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 import png  # noqa: E402
 import blackstone  # noqa: E402
+import cull  # noqa: E402
 # Chipped's blackstone (and gilded blackstone), darkened into Programmer Art Continuation's.
 BLACKSTONE = re.compile(r'(gilded_)?blackstone_\d+$')
 # Chipped's basalt, brought onto the pack's basalt the same way.
@@ -32,7 +33,7 @@ CHIPPED, CHISEL, VANILLA, OUT = sys.argv[1:5]
 # its blocks of vanilla blocks that Chipped 1.18.1 gave nothing to.
 CHIPPED2 = sys.argv[7] if len(sys.argv) > 7 else None
 PA2 = sys.argv[8] if len(sys.argv) > 8 else None
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 DIRS = ['down', 'up', 'north', 'south', 'west', 'east']
 COLORS = {'black': 'black', 'blue': 'blue', 'brown': 'brown', 'cyan': 'cyan', 'gray': 'gray', 'green': 'green',
           'lightblue': 'light_blue', 'light_blue': 'light_blue', 'lightgray': 'light_gray', 'light_gray': 'light_gray',
@@ -173,6 +174,9 @@ def copy_chipped_model(ref, ca=None, pa=None):
                     elif ext == '.png' and BASALT.match(tp.split('/')[-1]):
                         out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
                         png.write(out, blackstone.basalt(png.read(out)))
+                    elif ext == '.png' and cull.DESHINE.fullmatch(tp.split('/')[-1]):
+                        out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
+                        png.write(out, cull.deshine(png.read(out)))
 
 def models_in(state):
     found = []
@@ -206,6 +210,9 @@ for f in sorted(os.listdir(os.path.join(CA, 'blockstates')), key=lambda f: [int(
     m = re.fullmatch(r'(.+)_(\d+)', bid)
     base, n = (m.group(1), m.group(2)) if m else (bid, None)
     if bid in WORKBENCHES:
+        continue
+    if bid in cull.CUT:
+        left_out('chipped: cut', '%s (%s)' % (bid, cull.CUT[bid]))
         continue
     template, group = chipped_family(base)
     if not exists(template):
@@ -603,6 +610,9 @@ if CHIPPED2:
         m = re.fullmatch(r'(.+)_(\d+)', bid)
         base, n = (m.group(1), m.group(2)) if m else (bid, None)
         if bid in WORKBENCHES or n is None:
+            continue
+        if bid in cull.CUT:
+            left_out('chipped 1.18.2: cut', '%s (%s)' % (bid, cull.CUT[bid]))
             continue
         template, group = chipped_family(base)
         if group in chipped_groups:

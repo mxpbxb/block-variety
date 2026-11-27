@@ -40,6 +40,22 @@ Coke is a coal block smelted. Once one block is made, the chisel gives the rest 
 recipes: they took a lot of memory (a group of n blocks made n recipes of n items each, 343,026
 entries in all, sent to every player). Use the chisel.
 
+## Shiny blocks and raw blocks
+
+Chipped's newer textures are airbrushed and glossy: smooth gradients, white or pink diagonal shine
+streaks, and little pixel noise. Next to Chisel's blocks and the old Minecraft textures they look
+out of place. `tools/cull.py` holds the rule and the list (`report.json` shows each block left out
+and why):
+
+- A group with only a few such blocks loses them: 7 glowstone and 6 shroomlight.
+- In a group drawn that way all through (diamond, emerald, gold, iron and netherite blocks), the
+  shine is painted out instead (`deshine`). Each pixel only a little lighter or darker than the
+  block's body colour, and not part of a straight engraved line, takes the body colour. The
+  engraving and strong dark lines stay. Each of these groups' 12th block was only a shine and a
+  frame, so it is cut.
+- Raw iron, raw gold and raw copper blocks keep 30 of Chipped 1.18.2's 61 patterns. The 31 cut are
+  the ones most like a pattern that stays.
+
 ## Chipped 1.18.2
 
 Chipped 1.18.2's blocks come in only for the vanilla blocks that Chipped 1.18.1 gave none to: iron
