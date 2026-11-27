@@ -57,6 +57,11 @@ and why):
   (`nails`).
 - Raw iron, raw gold and raw copper blocks keep 30 of Chipped 1.18.2's 61 patterns. The 31 cut are
   the ones most like a pattern that stays.
+- Groups few build with are cut down the same way, the creeper-face stamp first: lodestone to 4
+  (a medallion, a frame, bricks and tiles), ancient debris, magma block, ice, packed ice and blue
+  ice by half, coal, redstone and lapis blocks by a quarter, and the small plants and odd blocks
+  (nether sprouts, crimson and warped roots and fungi, lily pads, cobwebs, vines, sponge, melon)
+  by three quarters.
 
 ## Chipped 1.18.2
 
