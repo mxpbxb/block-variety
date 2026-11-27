@@ -62,6 +62,7 @@ and why):
   ice by half, coal, redstone and lapis blocks by a quarter, and the small plants and odd blocks
   (nether sprouts, crimson and warped roots and fungi, lily pads, cobwebs, vines, sponge, melon)
   by three quarters.
+- The creeper-face stamp is cut from every group that has it (23 groups' 23rd block, and bricks' 84th).
 
 ## Chipped 1.18.2
 
