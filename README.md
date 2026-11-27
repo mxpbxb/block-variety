@@ -53,6 +53,8 @@ and why):
   block's body colour, and not part of a straight engraved line, takes the body colour. The
   engraving and strong dark lines stay. Each of these groups' 12th block was only a shine and a
   frame, so it is cut.
+  Their 11th block's corner nails, uneven in Chipped, are redrawn as one 2x2 rivet in each corner
+  (`nails`).
 - Raw iron, raw gold and raw copper blocks keep 30 of Chipped 1.18.2's 61 patterns. The 31 cut are
   the ones most like a pattern that stays.
 

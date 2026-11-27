@@ -54,6 +54,33 @@ def deshine(im, run=4, strong=0.83):
     return out
 
 
+def nails(im):
+    """Redraws the corner nails of a metal or gem block (its 11th): one 2x2 rivet in each corner,
+    lit from the top left, on the body colour. Chipped's own were uneven and lost to `deshine`."""
+    w = im.w
+    px = [tuple(im.get(x, y)) for y in range(16) for x in range(16)]
+    ys = sorted(Y(p) for p in px); mid = ys[len(ys)//2]
+    pal = sorted({p[:3] for p in px}, key=Y)
+    body = min(pal, key=lambda c: abs(Y(c) - mid))
+    dark = pal[0]
+    light = pal[-1]
+    under = [c for c in pal if Y(c) < Y(body)]
+    shade = under[len(under)//2] if under else dark
+    def put(x, y, c):
+        i = (y*w + x)*4; im.px[i:i+4] = bytes(c) + bytes([255])
+    for x0, y0, ya, yb in ((1, 2, 2, 4), (11, 2, 2, 4), (1, 11, 11, 13), (11, 11, 11, 13)):
+        for y in range(ya, yb + 1):
+            for x in range(x0, x0 + 4):
+                put(x, y, body)
+    for nx, ny in ((2, 2), (12, 2), (2, 12), (12, 12)):
+        put(nx, ny, light); put(nx + 1, ny, shade); put(nx, ny + 1, shade); put(nx + 1, ny + 1, dark)
+    return im
+
+
+# The metal and gem blocks with corner nails: redrawn by `nails`.
+NAILS = re.compile(r'(diamond|emerald|gold|iron|netherite)_block_11')
+
+
 # The groups drawn glossy all through: their textures (`<group>_<n>.png`) get `deshine`.
 DESHINE = re.compile(r'(diamond|emerald|gold|iron|netherite)_block_\d+')
 

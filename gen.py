@@ -176,7 +176,8 @@ def copy_chipped_model(ref, ca=None, pa=None):
                         png.write(out, blackstone.basalt(png.read(out)))
                     elif ext == '.png' and cull.DESHINE.fullmatch(tp.split('/')[-1]):
                         out = os.path.join(OUT, 'assets/chipped/textures', tp + ext)
-                        png.write(out, cull.deshine(png.read(out)))
+                        im = cull.deshine(png.read(out))
+                        png.write(out, cull.nails(im) if cull.NAILS.fullmatch(tp.split('/')[-1]) else im)
 
 def models_in(state):
     found = []
